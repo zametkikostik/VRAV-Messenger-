@@ -31,13 +31,19 @@ jobs:
       - name: Install cargo-ndk
         run: cargo install cargo-ndk
 
-      # Важный шаг для flutter_rust_bridge: сборка Rust-кода
+      # Автоматический поиск и сборка Rust-ядра
       - name: Build Rust Libraries
         run: |
-          cargo ndk -t aarch64-linux-android -o ./android/app/src/main/jniLibs build --release
-          cargo ndk -t armv7-linux-androideabi -o ./android/app/src/main/jniLibs build --release
+          # Находим путь к папке, где лежит Cargo.toml
+          CARGO_DIR=$(dirname $(find . -name "Cargo.toml" | head -n 1))
+          echo "Rust project found in: $CARGO_DIR"
+          
+          # Собираем библиотеки
+          cd $CARGO_DIR
+          cargo ndk -t aarch64-linux-android -o ../android/app/src/main/jniLibs build --release
+          cargo ndk -t armv7-linux-androideabi -o ../android/app/src/main/jniLibs build --release
 
-      # Сборка самого приложения
+      # Сборка Flutter APK
       - name: Build APK
         run: |
           flutter pub get
