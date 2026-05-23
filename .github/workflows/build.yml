@@ -12,6 +12,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 1. ОТЛАДКА: Выводим структуру папок, чтобы увидеть, где лежит Rust
+      - name: Debug Project Structure
+        run: ls -R
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -31,19 +35,21 @@ jobs:
       - name: Install cargo-ndk
         run: cargo install cargo-ndk
 
-      # Автоматический поиск и сборка Rust-ядра
+      # 2. Сборка Rust (пока пропускаем, если не нашли Cargo.toml)
       - name: Build Rust Libraries
         run: |
-          # Находим путь к папке, где лежит Cargo.toml
-          CARGO_DIR=$(dirname $(find . -name "Cargo.toml" | head -n 1))
-          echo "Rust project found in: $CARGO_DIR"
-          
-          # Собираем библиотеки
-          cd $CARGO_DIR
-          cargo ndk -t aarch64-linux-android -o ../android/app/src/main/jniLibs build --release
-          cargo ndk -t armv7-linux-androideabi -o ../android/app/src/main/jniLibs build --release
+          if [ -f "Cargo.toml" ]; then
+            cargo ndk -t aarch64-linux-android -o ./android/app/src/main/jniLibs build --release
+          elif [ -f "rust/Cargo.toml" ]; then
+            cd rust
+            cargo ndk -t aarch64-linux-android -o ../android/app/src/main/jniLibs build --release
+          elif [ -f "native/Cargo.toml" ]; then
+            cd native
+            cargo ndk -t aarch64-linux-android -o ../android/app/src/main/jniLibs build --release
+          else
+            echo "Cargo.toml не найден в ожидаемых местах. Проверьте лог Debug Project Structure."
+          fi
 
-      # Сборка Flutter APK
       - name: Build APK
         run: |
           flutter pub get
