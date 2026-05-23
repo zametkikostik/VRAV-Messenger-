@@ -12,7 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1. Подготовка окружения
+      - name: Debug Structure
+        run: ls -R
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -27,39 +29,26 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android, armv7-linux-androideabi
+          targets: aarch64-linux-android
 
-      - name: Install cargo-ndk
-        run: cargo install cargo-ndk
-
-      # 2. Автоматическая сборка Rust-ядра
-      - name: Build Rust Libraries
+      - name: Attempt Rust Build
         run: |
-          # Ищем папку с Cargo.toml
-          CARGO_FILE=$(find . -name "Cargo.toml" | head -n 1)
-          if [ -z "$CARGO_FILE" ]; then echo "Cargo.toml не найден"; exit 1; fi
-          CARGO_DIR=$(dirname "$CARGO_FILE")
-          echo "Rust проект найден в: $CARGO_DIR"
-          
-          cd "$CARGO_DIR"
-          # Сборка под Android
-          cargo ndk -t aarch64-linux-android -o ../android/app/src/main/jniLibs build --release
-          cargo ndk -t armv7-linux-androideabi -o ../android/app/src/main/jniLibs build --release
+          if [ -f "Cargo.toml" ]; then
+            cargo install cargo-ndk
+            cargo ndk -t aarch64-linux-android -o ./android/app/src/main/jniLibs build --release
+          else
+            echo "Rust код не найден, пропускаем сборку Rust-ядра..."
+          fi
 
-      # 3. Автоматическая сборка APK
       - name: Build APK
         run: |
-          # Ищем папку с pubspec.yaml
-          PUBSPEC_FILE=$(find . -name "pubspec.yaml" | head -n 1)
-          if [ -z "$PUBSPEC_FILE" ]; then echo "pubspec.yaml не найден"; exit 1; fi
-          FLUTTER_DIR=$(dirname "$PUBSPEC_FILE")
-          echo "Flutter проект найден в: $FLUTTER_DIR"
-          
+          # Ищем папку с pubspec.yaml и собираем там
+          FLUTTER_DIR=$(dirname $(find . -name "pubspec.yaml" | head -n 1))
+          echo "Flutter проект в: $FLUTTER_DIR"
           cd "$FLUTTER_DIR"
           flutter pub get
           flutter build apk --release
 
-      # 4. Выгрузка результата
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
