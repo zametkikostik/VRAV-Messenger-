@@ -12,36 +12,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1. Установка Java для Android
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      # 2. Установка Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.x'
 
-      # 3. Установка Rust-инструментов
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android, armv7-linux-androideabi
 
-      # 4. Установка cargo-ndk для сборки Rust-ядра
       - name: Install cargo-ndk
         run: cargo install cargo-ndk
 
-      # 5. Сборка проекта
+      # Важный шаг для flutter_rust_bridge: сборка Rust-кода
+      - name: Build Rust Libraries
+        run: |
+          cargo ndk -t aarch64-linux-android -o ./android/app/src/main/jniLibs build --release
+          cargo ndk -t armv7-linux-androideabi -o ./android/app/src/main/jniLibs build --release
+
+      # Сборка самого приложения
       - name: Build APK
         run: |
           flutter pub get
           flutter build apk --release
 
-      # 6. Загрузка APK как артефакта
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
