@@ -1,0 +1,49 @@
+name: VRAV Messenger Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. Установка Java для Android
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      # 2. Установка Flutter
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+
+      # 3. Установка Rust-инструментов
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, armv7-linux-androideabi
+
+      # 4. Установка cargo-ndk для сборки Rust-ядра
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      # 5. Сборка проекта
+      - name: Build APK
+        run: |
+          flutter pub get
+          flutter build apk --release
+
+      # 6. Загрузка APK как артефакта
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: vrav-messenger-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
