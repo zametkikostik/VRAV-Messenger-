@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endX="108"
+                android:endY="108"
+                android:startX="0"
+                android:startY="0"
+                android:type="linear">
+                <item
+                    android:color="#1C1B1F"
+                    android:offset="0.0" />
+                <item
+                    android:color="#25232A"
+                    android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Sovereign Matrix Geometric grid decorations -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M27,0L27,108 M54,0L54,108 M81,0L81,108 M0,27L108,27 M0,54L108,54 M0,81L108,81"
+        android:strokeWidth="0.4"
+        android:strokeColor="#15D0BCFF" />
+</vector>

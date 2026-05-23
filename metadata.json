@@ -1,0 +1,6 @@
+{
+  "name": "VRAV Messenger",
+  "description": "Decentralized Sovereign P2P Messenger with post-quantum hybrid X25519 & Kyber-768 cryptography, transient Pinata IPFS storage, CRDT chat logs, and Tor integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
