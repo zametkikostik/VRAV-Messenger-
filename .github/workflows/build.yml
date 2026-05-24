@@ -31,7 +31,6 @@ jobs:
             base64 -d debug.keystore.base64 > my-upload-key.jks
             
             echo "Пытаемся автоматически вытащить имя алиаса из твоего ключа..."
-            # Читаем список ключей, ищем строку с Alias name и забираем само имя
             DETECTED_ALIAS=$(keytool -list -v -keystore my-upload-key.jks -storepass android | grep "Alias name:" | head -n 1 | awk -F': ' '{print $2}' | xargs)
             
             if [ -z "$DETECTED_ALIAS" ]; then
@@ -50,7 +49,6 @@ jobs:
           fi
           
           echo "Определен рабочий алиас: $DETECTED_ALIAS"
-          # Сохраняем переменную для использования в следующих шагах GitHub Actions
           echo "KEY_ALIAS=$DETECTED_ALIAS" >> $GITHUB_ENV
 
       # 3. Настраиваем Rust
@@ -126,23 +124,31 @@ jobs:
           cargo ndk -t aarch64-linux-android -o ../app/src/main/jniLibs build --release
           cargo ndk -t armv7-linux-androideabi -o ../app/src/main/jniLibs build --release
 
-      # 6. Собираем APK релиз через системный gradle, подставляя динамический алиас
+      # 6. Собираем APK релиз через системный gradle
       - name: Build Android APK via Global Gradle
         run: |
-          # Проверяем, какой пароль использовать (дефолт для дебаг ключей часто 'android' или пустой)
-          # Если твой оригинальный jks требует кастомный пароль, можно будет добавить в секреты репозитория
           gradle assembleRelease \
             -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/my-upload-key.jks \
             -Pandroid.injected.signing.store.password=android \
             -Pandroid.injected.signing.key.alias=${{ env.KEY_ALIAS }} \
             -Pandroid.injected.signing.key.password=android
 
-      # 7. Публикуем готовые APK файлы в релизы GitHub
+      # 7. Подготавливаем безопасное имя тега, если воркфлоу запущен вручную
+      - name: Set Release Tag
+        run: |
+          if [ -z "${{ github.ref_name }}" ] || [[ "${{ github.ref }}" != refs/tags/* ]]; then
+            echo "RELEASE_TAG=v1.0.0-manual-build" >> $GITHUB_ENV
+          else
+            echo "RELEASE_TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+          fi
+
+      # 8. Публикуем готовые APK файлы в релизы GitHub
       - name: Create Release
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
           files: app/build/outputs/apk/release/*.apk
-          body: "🚀 Автоматический релиз VRAV Messenger v1.0.0. Полный цикл компиляции успешно пройден! Нативное крипто-ядро Rust залинковано, алиас ключа определен автоматически как `${{ env.KEY_ALIAS }}`, сборка подписана."
+          body: "🚀 Автоматический релиз VRAV Messenger. Полный цикл компиляции успешно пройден! Нативное крипто-ядро Rust залинковано, алиас ключа определен автоматически как `${{ env.KEY_ALIAS }}`, сборка подписана."
           draft: false
