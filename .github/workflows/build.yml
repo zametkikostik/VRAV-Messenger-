@@ -1,0 +1,137 @@
+name: VRAV Messenger Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java & Flutter
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, armv7-linux-androideabi
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Surgical Patch Crypto Core (Python Powered)
+        run: |
+          mkdir -p vrav-core/src
+
+          # 1. Восстанавливаем эталонный crypto_bridge.rs
+          cat << 'EOF' > vrav-core/src/crypto_bridge.rs
+          use x25519_dalek::{StaticSecret, PublicKey};
+          use aes_gcm::{aead::{Aead, KeyInit}, Aes256Gcm, Nonce};
+          use rand::rngs::OsRng;
+          use rand::RngCore;
+
+          pub fn generate_keypair() -> (Vec<u8>, Vec<u8>) {
+              let secret = StaticSecret::random_from_rng(OsRng);
+              let public = PublicKey::from(&secret);
+              (secret.to_bytes().to_vec(), public.as_bytes().to_vec())
+          }
+
+          pub fn derive_shared_secret(private_key: &[u8], remote_public_key: &[u8]) -> Vec<u8> {
+              let mut priv_bytes = [0u8; 32];
+              priv_bytes.copy_from_slice(&private_key[..32]);
+              let secret = StaticSecret::from(priv_bytes);
+              let mut pub_bytes = [0u8; 32];
+              pub_bytes.copy_from_slice(&remote_public_key[..32]);
+              let public = PublicKey::from(pub_bytes);
+              secret.diffie_hellman(&public).as_bytes().to_vec()
+          }
+
+          pub fn encrypt_message(key: Vec<u8>, plaintext: Vec<u8>) -> Vec<u8> {
+              let cipher = Aes256Gcm::new_from_slice(&key).unwrap();
+              let mut nonce_bytes = [0u8; 12];
+              rand::thread_rng().fill_bytes(&mut nonce_bytes);
+              let nonce = Nonce::from_slice(&nonce_bytes);
+              let mut ciphertext = cipher.encrypt(nonce, plaintext.as_slice()).unwrap();
+              let mut result = nonce_bytes.to_vec();
+              result.append(&mut ciphertext);
+              result
+          }
+
+          pub fn decrypt_message(key: Vec<u8>, ciphertext: Vec<u8>) -> Vec<u8> {
+              if ciphertext.len() < 12 { return vec![]; }
+              let cipher = Aes256Gcm::new_from_slice(&key).unwrap();
+              let nonce = Nonce::from_slice(&ciphertext[..12]);
+              cipher.decrypt(nonce, &ciphertext[12..]).unwrap_or_default()
+          }
+          EOF
+
+          # 2. Очищаем импорты в double_ratchet.rs через Python
+          python3 -c "
+          import re
+          with open('vrav-core/src/double_ratchet.rs', 'r') as f:
+              content = f.read()
+          content = re.sub(r'use x25519_dalek::\{[^}]+\};', 'use x25519_dalek::{StaticSecret, PublicKey};', content)
+          content = content.replace('EphemeralSecret', 'StaticSecret')
+          content = content.replace('StaticSecret::new(OsRng)', 'StaticSecret::random_from_rng(OsRng)')
+          content = content.replace('StaticSecret::random_from_rng(&mut OsRng)', 'StaticSecret::random_from_rng(OsRng)')
+          with open('vrav-core/src/double_ratchet.rs', 'w') as f:
+              f.write(content)
+          "
+
+      - name: Build Rust Core & Build Flutter APK
+        run: |
+          echo "=== Проверяем файлы в репозитории ==="
+          ls -R
+          
+          # Пытаемся найти pubspec.yaml или pubspec.yml
+          PUBSPEC_PATH=$(find . -name "pubspec.y*ml" -print -quit)
+          
+          if [ -z "$PUBSPEC_PATH" ]; then
+            echo "ВНИМАНИЕ: Файл pubspec.yaml не найден в репозитории!"
+            echo "Используем корень репозитория как дефолтную директорию."
+            FLUTTER_DIR="."
+          else
+            FLUTTER_DIR=$(dirname "$PUBSPEC_PATH")
+          fi
+          
+          echo "Итоговая папка Flutter проекта: $FLUTTER_DIR"
+          
+          # Собираем Rust-ядро
+          cd vrav-core
+          cargo ndk -t aarch64-linux-android -o "../$FLUTTER_DIR/android/app/src/main/jniLibs" build --release
+          cargo ndk -t armv7-linux-androideabi -o "../$FLUTTER_DIR/android/app/src/main/jniLibs" build --release
+          cd ..
+
+          # Переходим во Flutter и собираем
+          cd "$FLUTTER_DIR"
+          if [ -f "pubspec.yaml" ] || [ -f "pubspec.yml" ]; then
+            flutter pub get
+            flutter build apk --release --split-per-abi
+            
+            # Возвращаем артефакты в корень
+            mkdir -p "$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/"
+            cp build/app/outputs/flutter-apk/*.apk "$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/"
+          else
+            echo "Сборка Flutter невозможна: нет pubspec.yaml"
+            exit 1
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: build/app/outputs/flutter-apk/*.apk
+          body: "Автоматическая сборка релиза VRAV Messenger."
+          draft: false
