@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1. Настраиваем Java для сборки Android (Gradle)
+      # 1. Настраиваем Java для Gradle
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -22,7 +22,7 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      # 2. Настраиваем Rust компилятор под Android архитектуры
+      # 2. Настраиваем Rust
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -30,12 +30,11 @@ jobs:
       - name: Install cargo-ndk
         run: cargo install cargo-ndk
 
-      # 3. Наш хирургический Python-патч для совместимости крипты X25519 v2.0
+      # 3. Наш Python-патч для X25519 v2.0
       - name: Surgical Patch Crypto Core (Python Powered)
         run: |
           mkdir -p vrav-core/src
 
-          # Восстанавливаем эталонный crypto_bridge.rs со всеми методами
           cat << 'EOF' > vrav-core/src/crypto_bridge.rs
           use x25519_dalek::{StaticSecret, PublicKey};
           use aes_gcm::{aead::{Aead, KeyInit}, Aes256Gcm, Nonce};
@@ -77,7 +76,6 @@ jobs:
           }
           EOF
 
-          # Чистим double_ratchet.rs
           python3 -c "
           import re
           with open('vrav-core/src/double_ratchet.rs', 'r') as f:
@@ -90,25 +88,24 @@ jobs:
               f.write(content)
           "
 
-      # 4. Компилируем Rust-ядро и кидаем .so библиотеки прямо в твой нативный Android-проект
+      # 4. Собираем библиотеки Rust (.so)
       - name: Build Rust Core
         run: |
           cd vrav-core
           cargo ndk -t aarch64-linux-android -o ../app/src/main/jniLibs build --release
           cargo ndk -t armv7-linux-androideabi -o ../app/src/main/jniLibs build --release
 
-      # 5. Делаем Gradle-скрипт исполняемым и запускаем сборку нативного APK
-      - name: Build Android APK via Gradle
+      # 5. Собираем APK глобально установленным утилитой gradle
+      - name: Build Android APK via Global Gradle
         run: |
-          chmod + +x gradlew
-          ./gradlew assembleRelease
+          gradle assembleRelease
 
-      # 6. Создаем релиз на GitHub и прикрепляем готовые APK
+      # 6. Публикуем готовые APK файлы в релизы
       - name: Create Release
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: app/build/outputs/apk/release/*.apk
-          body: "Релиз VRAV Messenger v1.0.0. Нативное ядро (Rust) скомпилировано и встроено в Android-приложение (Jetpack Compose). APK готов к установке."
+          body: "Автоматический релиз VRAV Messenger v1.0.0. Архитектурные исправления применены, компиляция через глобальный Gradle завершена."
           draft: false
