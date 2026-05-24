@@ -30,20 +30,19 @@ jobs:
       - name: Install cargo-ndk
         run: cargo install cargo-ndk
 
-      - name: Full Recovery Crypto Core (Fix Interface & x25519 v2.0)
+      - name: Surgical Patch Crypto Core (Python Powered)
         run: |
           mkdir -p vrav-core/src
 
-          # 1. Полностью восстанавливаем crypto_bridge.rs со всеми методами шифрования
+          # 1. Восстанавливаем эталонный crypto_bridge.rs
           cat << 'EOF' > vrav-core/src/crypto_bridge.rs
-          use anyhow::{Result, anyhow};
           use x25519_dalek::{StaticSecret, PublicKey};
           use aes_gcm::{aead::{Aead, KeyInit}, Aes256Gcm, Nonce};
           use rand::rngs::OsRng;
           use rand::RngCore;
 
           pub fn generate_keypair() -> (Vec<u8>, Vec<u8>) {
-              let secret = StaticSecret::new(OsRng);
+              let secret = StaticSecret::random_from_rng(OsRng);
               let public = PublicKey::from(&secret);
               (secret.to_bytes().to_vec(), public.as_bytes().to_vec())
           }
@@ -52,11 +51,9 @@ jobs:
               let mut priv_bytes = [0u8; 32];
               priv_bytes.copy_from_slice(&private_key[..32]);
               let secret = StaticSecret::from(priv_bytes);
-              
               let mut pub_bytes = [0u8; 32];
               pub_bytes.copy_from_slice(&remote_public_key[..32]);
               let public = PublicKey::from(pub_bytes);
-              
               secret.diffie_hellman(&public).as_bytes().to_vec()
           }
 
@@ -65,7 +62,6 @@ jobs:
               let mut nonce_bytes = [0u8; 12];
               rand::thread_rng().fill_bytes(&mut nonce_bytes);
               let nonce = Nonce::from_slice(&nonce_bytes);
-              
               let mut ciphertext = cipher.encrypt(nonce, plaintext.as_slice()).unwrap();
               let mut result = nonce_bytes.to_vec();
               result.append(&mut ciphertext);
@@ -80,13 +76,25 @@ jobs:
           }
           EOF
 
-          # 2. Аккуратно чистим double_ratchet.rs от дублей и чиним вызов EphemeralSecret
-          # Сначала убираем дублирование StaticSecret, если оно возникло
-          sed -i 's/StaticSecret, StaticSecret/StaticSecret/g' vrav-core/src/double_ratchet.rs
-          # Переводим Ephemeral на Static
-          sed -i 's/EphemeralSecret/StaticSecret/g' vrav-core/src/double_ratchet.rs
-          sed -i 's/StaticSecret::random_from_rng(OsRng)/StaticSecret::new(OsRng)/g' vrav-core/src/double_ratchet.rs
-          sed -i 's/StaticSecret::random_from_rng(&mut OsRng)/StaticSecret::new(OsRng)/g' vrav-core/src/double_ratchet.rs
+          # 2. Применяем Python для гарантированной очистки импортов в double_ratchet.rs
+          python3 -c "
+          import re
+          with open('vrav-core/src/double_ratchet.rs', 'r') as f:
+              content = f.read()
+          
+          # Заменяем абсолютно любую строку импорта x25519_dalek на чистую
+          content = re.sub(r'use x25519_dalek::\{[^}]+\};', 'use x25519_dalek::{StaticSecret, PublicKey};', content)
+          
+          # Заменяем EphemeralSecret на StaticSecret во всем файле
+          content = content.replace('EphemeralSecret', 'StaticSecret')
+          
+          # Корректируем методы генерации под v2.0
+          content = content.replace('StaticSecret::new(OsRng)', 'StaticSecret::random_from_rng(OsRng)')
+          content = content.replace('StaticSecret::random_from_rng(&mut OsRng)', 'StaticSecret::random_from_rng(OsRng)')
+          
+          with open('vrav-core/src/double_ratchet.rs', 'w') as f:
+              f.write(content)
+          "
 
       - name: Build Rust Core
         run: |
@@ -105,5 +113,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: build/app/outputs/flutter-apk/*.apk
-          body: "Релиз VRAV Messenger v1.0.0. Полный боевой комплект крипто-ядра скомпилирован успешно!"
+          body: "Релиз VRAV Messenger v1.0.0. Криптографическое ядро пропатчено, линковка завершена успешно, APK готов к установке."
           draft: false
