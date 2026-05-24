@@ -1,0 +1,52 @@
+name: VRAV Build All-in-One
+
+on:
+  push:
+    tags: ['v1.0.0']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: 'zulu', java-version: '17' }
+      - uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.x' }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: aarch64-linux-android }
+      - run: cargo install cargo-ndk
+
+      - name: Generate Rust Files
+        run: |
+          mkdir -p vrav-core/src
+          echo '[package]
+          name = "vrav-core"
+          version = "0.1.0"
+          edition = "2021"
+          [lib]
+          crate-type = ["cdylib"]
+          [dependencies]
+          anyhow = "1.0"
+          serde = { version = "1.0", features = ["derive"] }
+          x25519-dalek = "2.0"
+          aes-gcm = "0.10"
+          flutter_rust_bridge = "1.80"' > vrav-core/Cargo.toml
+          
+          echo 'pub fn init() -> String { "VRAV Core Ready".to_string() }' > vrav-core/src/lib.rs
+
+      - name: Build Rust & APK
+        run: |
+          cd vrav-core
+          cargo ndk -t aarch64-linux-android -o ../android/app/src/main/jniLibs build --release
+          cd ..
+          flutter pub get
+          flutter build apk --release --split-per-abi
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/app/outputs/flutter-apk/*.apk
+          body: "Авто-сборка VRAV Messenger v1.0.0"
+        env: { GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} }
