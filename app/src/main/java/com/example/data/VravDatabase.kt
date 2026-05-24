@@ -124,7 +124,7 @@ abstract class VravDatabase : RoomDatabase() {
                     VravDatabase::class.java,
                     "vrav_messenger_database"
                 )
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
                 INSTANCE = instance
                 instance
