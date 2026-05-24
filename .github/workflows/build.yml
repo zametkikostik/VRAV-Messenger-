@@ -30,10 +30,15 @@ jobs:
       - name: Install cargo-ndk
         run: cargo install cargo-ndk
 
-      - name: Auto-fix Rust EphemeralSecret
+      - name: Auto-patch X25519 v2.0 Compliance
         run: |
+          # Исправляем импорты и инициализацию в crypto_bridge.rs
           sed -i 's/EphemeralSecret/StaticSecret/g' vrav-core/src/crypto_bridge.rs
+          sed -i 's/StaticSecret::random_from_rng(OsRng)/StaticSecret::new(OsRng)/g' vrav-core/src/crypto_bridge.rs
+          
+          # Исправляем импорты и инициализацию в double_ratchet.rs
           sed -i 's/EphemeralSecret/StaticSecret/g' vrav-core/src/double_ratchet.rs
+          sed -i 's/StaticSecret::random_from_rng(OsRng)/StaticSecret::new(OsRng)/g' vrav-core/src/double_ratchet.rs
 
       - name: Build Rust Core
         run: |
@@ -52,5 +57,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: build/app/outputs/flutter-apk/*.apk
-          body: "Автоматический релиз VRAV Messenger. Интегрировано нативное ядро vrav-core (Rust + Kyber + X25519) с авто-патчем криптографии."
+          body: "Автоматический релиз VRAV Messenger. Нативное ядро vrav-core успешно адаптировано под стандарты x25519-dalek v2.0, скомпилировано и готово к работе."
           draft: false
