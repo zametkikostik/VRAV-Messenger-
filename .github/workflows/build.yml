@@ -82,13 +82,8 @@ jobs:
           with open('vrav-core/src/double_ratchet.rs', 'r') as f:
               content = f.read()
           
-          # Заменяем абсолютно любую строку импорта x25519_dalek на чистую
           content = re.sub(r'use x25519_dalek::\{[^}]+\};', 'use x25519_dalek::{StaticSecret, PublicKey};', content)
-          
-          # Заменяем EphemeralSecret на StaticSecret во всем файле
           content = content.replace('EphemeralSecret', 'StaticSecret')
-          
-          # Корректируем методы генерации под v2.0
           content = content.replace('StaticSecret::new(OsRng)', 'StaticSecret::random_from_rng(OsRng)')
           content = content.replace('StaticSecret::random_from_rng(&mut OsRng)', 'StaticSecret::random_from_rng(OsRng)')
           
@@ -99,11 +94,15 @@ jobs:
       - name: Build Rust Core
         run: |
           cd vrav-core
+          # Если твой проект Flutter лежит в корне, пути ../android верны. 
+          # Если проект Flutter в подпапке, например 'vrav-messenger', измени пути на ../vrav-messenger/android
           cargo ndk -t aarch64-linux-android -o ../android/app/src/main/jniLibs build --release
           cargo ndk -t armv7-linux-androideabi -o ../android/app/src/main/jniLibs build --release
 
       - name: Build Flutter APK
         run: |
+          # ЕСЛИ FLUTTER В ПОДПАПКЕ, РАСКОММЕНТИРУЙ СТРОКУ НИЖЕ И УКАЖИ НАЗВАНИЕ ПАПКИ:
+          # cd ТВОЯ_ПАПКА_FLUTTER
           flutter pub get
           flutter build apk --release --split-per-abi
 
@@ -112,6 +111,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          # Если менял директорию сборки, путь к артефактам может стать: ТВОЯ_ПАПКА_FLUTTER/build/app/...
           files: build/app/outputs/flutter-apk/*.apk
           body: "Релиз VRAV Messenger v1.0.0. Криптографическое ядро пропатчено, линковка завершена успешно, APK готов к установке."
           draft: false
