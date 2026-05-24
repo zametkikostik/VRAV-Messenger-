@@ -3,7 +3,8 @@ name: VRAV Messenger Release
 on:
   push:
     tags:
-      - 'v1.0.0'
+      - 'v*' # Запустится на v1.0.0, v1.0.1, v2.0 и т.д.
+  workflow_dispatch: # ВОТ ЭТО ДОБАВИТ КНОПКУ РУЧНОГО ЗАПУСКА
 
 jobs:
   build:
@@ -46,5 +47,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: build/app/outputs/flutter-apk/*.apk
-          body: "Релиз VRAV Messenger v1.0.0. Интегрировано ядро vrav-core (Rust + Kyber + X25519)."
+          body: "Релиз VRAV Messenger. Интегрировано ядро vrav-core (Rust + Kyber + X25519)."
           draft: false
