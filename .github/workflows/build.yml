@@ -91,24 +91,41 @@ jobs:
 
       - name: Build Rust Core & Build Flutter APK
         run: |
-          # Автоматически находим, в какой папке лежит pubspec.yaml
-          FLUTTER_DIR=$(dirname $(find . -name pubspec.yaml -print -quit))
-          echo "Flutter project found in directory: $FLUTTER_DIR"
+          echo "=== Проверяем файлы в репозитории ==="
+          ls -R
           
-          # Собираем Rust-ядро и отправляем jniLibs прямо в найденную папку проекта
+          # Пытаемся найти pubspec.yaml или pubspec.yml
+          PUBSPEC_PATH=$(find . -name "pubspec.y*ml" -print -quit)
+          
+          if [ -z "$PUBSPEC_PATH" ]; then
+            echo "ВНИМАНИЕ: Файл pubspec.yaml не найден в репозитории!"
+            echo "Используем корень репозитория как дефолтную директорию."
+            FLUTTER_DIR="."
+          else
+            FLUTTER_DIR=$(dirname "$PUBSPEC_PATH")
+          fi
+          
+          echo "Итоговая папка Flutter проекта: $FLUTTER_DIR"
+          
+          # Собираем Rust-ядро
           cd vrav-core
           cargo ndk -t aarch64-linux-android -o "../$FLUTTER_DIR/android/app/src/main/jniLibs" build --release
           cargo ndk -t armv7-linux-androideabi -o "../$FLUTTER_DIR/android/app/src/main/jniLibs" build --release
           cd ..
 
-          # Переходим в папку с Flutter и собираем APK
+          # Переходим во Flutter и собираем
           cd "$FLUTTER_DIR"
-          flutter pub get
-          flutter build apk --release --split-per-abi
-
-          # Переносим собранные APK обратно в корневой build, чтобы шаг релиза их увидел
-          mkdir -p ../build/app/outputs/flutter-apk/
-          cp build/app/outputs/flutter-apk/*.apk ../build/app/outputs/flutter-apk/
+          if [ -f "pubspec.yaml" ] || [ -f "pubspec.yml" ]; then
+            flutter pub get
+            flutter build apk --release --split-per-abi
+            
+            # Возвращаем артефакты в корень
+            mkdir -p "$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/"
+            cp build/app/outputs/flutter-apk/*.apk "$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/"
+          else
+            echo "Сборка Flutter невозможна: нет pubspec.yaml"
+            exit 1
+          fi
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -116,5 +133,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: build/app/outputs/flutter-apk/*.apk
-          body: "Релиз VRAV Messenger v1.0.0. Успешная автоматическая локация проекта, компиляция ядра и сборка APK завершены."
+          body: "Автоматическая сборка релиза VRAV Messenger."
           draft: false
