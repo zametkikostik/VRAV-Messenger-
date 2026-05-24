@@ -3,8 +3,8 @@ name: VRAV Messenger Release
 on:
   push:
     tags:
-      - 'v*' # Запустится на v1.0.0, v1.0.1, v2.0 и т.д.
-  workflow_dispatch: # ВОТ ЭТО ДОБАВИТ КНОПКУ РУЧНОГО ЗАПУСКА
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -27,11 +27,16 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android, armv7-linux-androideabi
-      - run: cargo install cargo-ndk
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Auto-fix Rust EphemeralSecret
+        run: |
+          sed -i 's/EphemeralSecret/StaticSecret/g' vrav-core/src/crypto_bridge.rs
+          sed -i 's/EphemeralSecret/StaticSecret/g' vrav-core/src/double_ratchet.rs
 
       - name: Build Rust Core
         run: |
-          mkdir -p vrav-core/src
           cd vrav-core
           cargo ndk -t aarch64-linux-android -o ../android/app/src/main/jniLibs build --release
           cargo ndk -t armv7-linux-androideabi -o ../android/app/src/main/jniLibs build --release
@@ -47,5 +52,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: build/app/outputs/flutter-apk/*.apk
-          body: "Релиз VRAV Messenger. Интегрировано ядро vrav-core (Rust + Kyber + X25519)."
+          body: "Автоматический релиз VRAV Messenger. Интегрировано нативное ядро vrav-core (Rust + Kyber + X25519) с авто-патчем криптографии."
           draft: false
