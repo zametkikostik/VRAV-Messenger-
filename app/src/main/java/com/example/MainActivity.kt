@@ -45,21 +45,139 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         
-        val viewModel = ViewModelProvider(this)[VravViewModel::class.java]
+        var viewModelInitializationError: Throwable? = null
+        var viewModel: VravViewModel? = null
+        try {
+            viewModel = ViewModelProvider(this)[VravViewModel::class.java]
+        } catch (t: Throwable) {
+            viewModelInitializationError = t
+            android.util.Log.e("VravSystem", "Fatal: Failed to initialize VravViewModel", t)
+        }
 
         setContent {
             MyApplicationTheme {
-                Scaffold(
-                    modifier = Modifier.fillMaxSize().background(SleekBackground),
-                    contentWindowInsets = WindowInsets.safeDrawing
-                ) { innerPadding ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding)
-                            .background(SleekBackground)
-                    ) {
-                        MainContentScreen(viewModel)
+                var compositionError by remember { mutableStateOf<Throwable?>(viewModelInitializationError) }
+
+                // Define an Uncaught Exception Handler to capture async/layout crashes safely inside RAM
+                val mainHandler = remember { android.os.Handler(android.os.Looper.getMainLooper()) }
+                DisposableEffect(Unit) {
+                    val originalHandler = Thread.getDefaultUncaughtExceptionHandler()
+                    Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+                        android.util.Log.e("VravFatalCrash", "Sovereign Emergency Interception!", throwable)
+                        mainHandler.post {
+                            compositionError = throwable
+                        }
+                    }
+                    onDispose {
+                        Thread.setDefaultUncaughtExceptionHandler(originalHandler)
+                    }
+                }
+
+                if (compositionError != null) {
+                    // Sovereign emergency crash recovery screen
+                    Scaffold(
+                        modifier = Modifier.fillMaxSize().background(SleekBackground)
+                    ) { innerPadding ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding)
+                                .background(SleekBackground)
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = "Sovereign System Flagged",
+                                    tint = SleekCoral,
+                                    modifier = Modifier.size(64.dp)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "SOVEREIGN SYSTEM RUNTIME RECOVERY",
+                                    color = SleekTextPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "To guarantee zero metadata leakage and client security, anomalous system exceptions are intercepted safely inside RAM.",
+                                    color = SleekTextSecondary,
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(200.dp)
+                                        .background(SleekSurface, RoundedCornerShape(12.dp))
+                                        .border(0.5.dp, SleekBorder, RoundedCornerShape(12.dp))
+                                        .padding(12.dp)
+                                ) {
+                                    LazyColumn {
+                                        item {
+                                            Text(
+                                                text = compositionError?.stackTraceToString() ?: "Anomalous operation details offline.",
+                                                color = SleekCoral,
+                                                fontFamily = FontFamily.Monospace,
+                                                fontSize = 10.sp
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(
+                                    onClick = {
+                                        // Clear preferences and reload
+                                        val prefs = getSharedPreferences("vrav_prefs", android.content.Context.MODE_PRIVATE)
+                                        prefs.edit().clear().apply()
+                                        val intent = intent
+                                        finish()
+                                        startActivity(intent)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SleekCoral)
+                                ) {
+                                    Text("Reset Sandbox & Reboot Node", color = SleekBackground, fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = {
+                                        compositionError = null
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SleekBorder)
+                                ) {
+                                    Text("Dismiss & Resume Ephemeral Session", color = SleekTextPrimary)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Scaffold(
+                        modifier = Modifier.fillMaxSize().background(SleekBackground),
+                        contentWindowInsets = WindowInsets.safeDrawing
+                    ) { innerPadding ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding)
+                                .background(SleekBackground)
+                        ) {
+                            if (viewModel != null) {
+                                MainContentScreen(viewModel)
+                            } else {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("Sovereign VM failure. Please reset.", color = SleekCoral)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -657,7 +775,7 @@ fun ConversationScreen(viewModel: VravViewModel, peerId: String) {
                 shape = RoundedCornerShape(24.dp),
                 modifier = Modifier
                     .weight(1f)
-                    .height(48.dp)
+                    .height(56.dp)
                     .border(0.5.dp, SleekBorder, RoundedCornerShape(24.dp))
                     .testTag("message_input")
             )

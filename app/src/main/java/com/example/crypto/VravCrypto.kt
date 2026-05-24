@@ -81,7 +81,7 @@ object VravCrypto {
             val ivStr = Base64.encodeToString(iv, Base64.NO_WRAP)
             val cipherStr = Base64.encodeToString(encryptedBytes, Base64.NO_WRAP)
             "$ivStr:$cipherStr"
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             android.util.Log.e("VravCrypto", "Secure key encryption failed", e)
             ""
         }
@@ -103,7 +103,7 @@ object VravCrypto {
             cipher.init(javax.crypto.Cipher.DECRYPT_MODE, getOrCreateSecretKey(), spec)
             val decryptedBytes = cipher.doFinal(cipherBytes)
             String(decryptedBytes, Charsets.UTF_8)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             android.util.Log.e("VravCrypto", "Secure key decryption failed", e)
             ""
         }

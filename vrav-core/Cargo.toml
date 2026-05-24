@@ -1,0 +1,36 @@
+[package]
+name = "vrav-core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+# Error Handling
+anyhow = "1.0"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Cryptography (Standard & Post-Quantum)
+x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+pqcrypto-kyber = "0.8"
+pqcrypto-traits = "0.3"
+hkdf = "0.12"
+sha2 = "0.10"
+
+# Symmetric Encryption (AES-GCM for payload encryption)
+aes-gcm = "0.10"
+
+# Random Number Generator
+rand = "0.8"
+
+# Flutter Rust Bridge Integration (API declarations)
+flutter_rust_bridge = "1.80"
+
+# Networking (libp2p & async runtime)
+libp2p = { version = "0.52", features = ["tcp", "dns", "noise", "yamux", "kad", "macros", "tokio", "identify", "request-response", "gossipsub"] }
+tokio = { version = "1.35", features = ["rt-multi-thread", "sync", "time", "macros"] }
+futures = "0.3"
